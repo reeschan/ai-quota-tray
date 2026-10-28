@@ -2,37 +2,65 @@ name: ci
 
 on:
   push:
+    branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  core:
-    name: core and cli
+  ubuntu:
+    name: core, cli, and ui
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with:
+          toolchain: stable
           components: clippy, rustfmt
-      - name: fmt
-        run: cargo fmt --all --check
-      - name: clippy
-        run: cargo clippy -p quota-core -p quota-cli --all-targets -- -D warnings
-      - name: test
-        run: cargo test -p quota-core -p quota-cli
-
-  desktop:
-    name: windows compile
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: actions/setup-node@v4
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: "22"
+          node-version: 22
           cache: npm
           cache-dependency-path: apps/desktop/package-lock.json
-      - name: frontend
+      - name: Format
+        run: cargo fmt --all --check
+      # The desktop crate links WebKitGTK. Windows is the primary target and
+      # builds that crate; this job covers the library and the CLI.
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --exclude quota-desktop -- -D warnings
+      - name: Test
+        run: cargo test --workspace --exclude quota-desktop
+      - name: Frontend typecheck and build
         working-directory: apps/desktop
         run: npm ci && npm run build
-      - name: compile tray app
-        run: cargo build -p quota-desktop
+
+  windows:
+    name: workspace
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: stable
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+      - name: Format
+        run: cargo fmt --all --check
+      - name: Frontend typecheck and build
+        working-directory: apps/desktop
+        run: npm ci && npm run build
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Test
+        run: cargo test --workspace

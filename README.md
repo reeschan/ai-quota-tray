@@ -58,6 +58,22 @@ npm run dev
 
 `http://127.0.0.1:43123` はサンプルデータです。実データの取得はトレイアプリの中だけです。
 
+## ダウンロード / インストール
+
+最新の Windows ビルドは GitHub Releases にあります。
+
+https://github.com/reeschan/ai-quota-tray/releases/latest
+
+`v*` タグの Release には次が付きます。
+
+- `.msi` — WiX のインストーラ。トレイアプリを入れます。
+- `*-setup.exe` — NSIS のセットアップ。同じトレイアプリです。
+- `quota-<version>-windows-x64.zip` — 展開すると CLI の `quota.exe` だけが入っています。
+
+Windows 11 には WebView2 が入っています。自分でビルドするときの前提は「Windows でのビルド」と同じです。
+
+コード署名用の証明書はまだありません。Release の `.msi` と `.exe` は未署名です。ダウンロードすると Windows SmartScreen が「Windows によって PC が保護されました」と表示することがあります。ファイルの入手元がこのリポジトリの Releases であることを確認したうえで、「詳細情報」から実行してください。Windows 11 で Smart App Control が有効なときは、未署名のアプリがブロックされ、そのアプリだけを許可することはできません。
+
 ## Linux での core テスト
 
 GUI なしで core と CLI を検証できます。
@@ -70,7 +86,30 @@ cargo test -p quota-core -p quota-cli
 
 トレイアプリも Linux でコンパイルする場合は WebKitGTK 4.1 の開発パッケージが要ります。先に `apps/desktop` で `npm ci && npm run build` してから `cargo build -p quota-desktop` です。`frontendDist` の `apps/desktop/dist` が無いと Tauri のビルドが失敗します。
 
-GitHub Actions は Ubuntu で core / CLI の fmt・clippy・test、Windows でトレイアプリのコンパイルを走らせます。msi の作成は Actions には入れていません。
+GitHub Actions の CI は `main` への push と pull request で動きます。Ubuntu では `quota-desktop` を除いた fmt、clippy、test と、トレイ UI の型チェックおよびビルドを行います。Windows ではワークスペース全体の fmt、clippy、test と、同じ UI ビルドを行います。`.msi` と NSIS のインストーラは、下のリリースタグを push したときに作ります。
+
+## リリース手順
+
+1. バージョン `X.Y.Z` を次の 3 か所に書いてコミットする。クレートのバージョンは workspace の値を参照しています。
+   - `Cargo.toml` の `[workspace.package] version`
+   - `apps/desktop/src-tauri/tauri.conf.json` の `version`
+   - `apps/desktop/package.json` の `version`
+2. そのコミットにタグ `vX.Y.Z` を打ち、タグだけを push する。`v` で始まるタグが Release ワークフローを起動します。
+
+```bash
+git tag vX.Y.Z
+git push origin vX.Y.Z
+```
+
+3. Windows の runner が、ビルドの前にタグから `v` を除いた番号を上の 3 ファイルと `Cargo.lock` へ書き込みます。成果物のバージョンはタグが基準です。`.msi`、NSIS の setup `.exe`、`quota-<version>-windows-x64.zip` が GitHub Release に載ります。Release は draft ではなく、リリースノートは GitHub が生成します。
+
+署名は任意です。次の secrets がすべて揃っているときだけ、証明書を runner に読み込み、`tauri.conf.json` に拇印を書いて署名します。一つでも欠けていると失敗します。どれも無ければ未署名のまま公開します。値はログに出しません。
+
+- `WINDOWS_CERTIFICATE` — `.pfx` を Base64 にしたもの
+- `WINDOWS_CERTIFICATE_PASSWORD` — その pfx のパスワード
+- `WINDOWS_CERTIFICATE_THUMBPRINT` — 証明書の拇印
+
+既にあるタグを指定して、Actions から Release ワークフローを手動実行することもできます。入力 `tag` は `vX.Y.Z` です。
 
 ## 設定とキー
 

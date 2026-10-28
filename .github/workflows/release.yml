@@ -1,0 +1,138 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to build (vX.Y.Z)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: windows installers
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 1
+      - name: Check out the release tag
+        id: rel
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            tag="$INPUT_TAG"
+          else
+            tag="${GITHUB_REF_NAME}"
+          fi
+          if ! printf '%s\n' "$tag" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.]+)?$'; then
+            echo "Release tag must look like vX.Y.Z" >&2
+            exit 1
+          fi
+          git fetch --depth 1 origin "refs/tags/${tag}:refs/tags/${tag}"
+          git checkout --detach "refs/tags/${tag}"
+          version="${tag#v}"
+          {
+            printf 'tag=%s\n' "$tag"
+            printf 'version=%s\n' "$version"
+          } >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - name: Set the app version from the tag
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ steps.rel.outputs.version }}
+        run: node scripts/set-release-version.mjs
+      - name: Install frontend dependencies
+        working-directory: apps/desktop
+        run: npm ci
+      - name: Build the quota CLI
+        run: cargo build -p quota-cli --release --locked
+      - name: Zip quota.exe
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ steps.rel.outputs.version }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          if ($env:RELEASE_VERSION -notmatch '^[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.]+)?$') {
+            throw "Refusing to name the CLI archive from an unexpected version."
+          }
+          $stage = Join-Path $env:RUNNER_TEMP "quota-cli"
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item "target\release\quota.exe" (Join-Path $stage "quota.exe")
+          $zip = "quota-$env:RELEASE_VERSION-windows-x64.zip"
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+          Compress-Archive -Path (Join-Path $stage "quota.exe") -DestinationPath $zip
+      # Authenticode is optional. Unsigned installers are published when these
+      # secrets are absent. Values are never printed.
+      - name: Import optional Windows code-signing certificate
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          WINDOWS_CERTIFICATE_THUMBPRINT: ${{ secrets.WINDOWS_CERTIFICATE_THUMBPRINT }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          node scripts/apply-windows-signing.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE)) { exit 0 }
+          $dir = Join-Path $env:RUNNER_TEMP "ai-quota-cert"
+          New-Item -ItemType Directory -Force -Path $dir | Out-Null
+          $b64 = Join-Path $dir "cert.txt"
+          $pfx = Join-Path $dir "certificate.pfx"
+          [System.IO.File]::WriteAllText($b64, $env:WINDOWS_CERTIFICATE.Trim())
+          & certutil -decode $b64 $pfx | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "certutil could not decode WINDOWS_CERTIFICATE" }
+          Remove-Item $b64 -Force
+          $secure = ConvertTo-SecureString -String $env:WINDOWS_CERTIFICATE_PASSWORD -Force -AsPlainText
+          Import-PfxCertificate -FilePath $pfx -CertStoreLocation "Cert:\CurrentUser\My" -Password $secure | Out-Null
+          Remove-Item $pfx -Force
+          Write-Host "Imported the optional Windows code-signing certificate."
+      - name: Build installers and publish the release
+        uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0.6.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: apps/desktop
+          tagName: ${{ steps.rel.outputs.tag }}
+          releaseName: AI Quota ${{ steps.rel.outputs.tag }}
+          releaseBody: |
+            Windows 用のビルドです。コード署名証明書が設定されていないリリースは未署名で、SmartScreen が警告を出すことがあります。
+
+            - `.msi` と NSIS の `*-setup.exe` はトレイアプリです
+            - `quota-<version>-windows-x64.zip` は CLI の `quota.exe` です
+          releaseDraft: false
+          prerelease: false
+          generateReleaseNotes: true
+          includeUpdaterJson: false
+          uploadPlainBinary: false
+          args: --bundles msi,nsis
+      - name: Attach the quota CLI zip
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.rel.outputs.tag }}
+          RELEASE_VERSION: ${{ steps.rel.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          zip="quota-${RELEASE_VERSION}-windows-x64.zip"
+          gh release upload "$RELEASE_TAG" "$zip" --clobber
