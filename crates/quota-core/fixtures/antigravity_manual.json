@@ -1,0 +1,7 @@
+{
+  "windows": [
+    { "label": "週次", "used_pct": 37, "resets_at": "2026-11-03T00:00:00Z" }
+  ],
+  "balance": { "amount": "4.50", "currency": "USD" },
+  "spend": null
+}

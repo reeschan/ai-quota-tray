@@ -1,0 +1,17 @@
+[package]
+name = "quota-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Print AI usage quota snapshots as JSON or text"
+
+[[bin]]
+name = "quota"
+path = "src/main.rs"
+
+[dependencies]
+clap.workspace = true
+quota-core = { path = "../quota-core" }
+serde_json.workspace = true
+tokio.workspace = true

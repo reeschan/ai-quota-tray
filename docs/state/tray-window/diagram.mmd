@@ -1,0 +1,11 @@
+stateDiagram-v2
+    [*] --> hidden: ウィンドウ main は visible false
+    hidden --> visible: reveal
+    visible --> hidden: CloseRequested で prevent_close して hide
+    visible --> settings: tab = settings
+    settings --> usage: tab = usage
+    usage --> usage: snapshots-updated で render
+    settings --> settings: snapshots-updated は snapshots だけ更新
+    note right of hidden
+        debug_assertions のときだけ起動時に show
+    end note

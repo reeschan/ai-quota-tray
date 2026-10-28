@@ -1,0 +1,11 @@
+stateDiagram-v2
+    [*] --> normal
+    normal --> crossed: used_pct >= notify_used_pct
+    normal --> crossed: balance < notify_balance_below
+    crossed --> latched: crossing_alerts が Alert を返す
+    latched --> latched: 同じしきい値のまま
+    latched --> normal: 報告された値が回復
+    note right of latched
+        キーは provider|pct|label と provider|balance
+        スナップショットが指標を欠くときはラッチを消さない
+    end note

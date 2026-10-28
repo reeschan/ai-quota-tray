@@ -1,0 +1,12 @@
+stateDiagram-v2
+    [*] --> LoopState_new: spawn_scheduler
+    LoopState_new --> fetching: due
+    fetching --> succeed: fetch Ok かつ has_data
+    fetching --> fail: error かつ has_data でない
+    succeed --> fetching: refresh_secs 経過
+    fail --> fetching: backoff_delay 経過
+    fetching --> fetching: kick から 2 秒
+    note right of fail
+        backoff_delay の base は 30 秒
+        failures ごとに倍々、上限は refresh_secs
+    end note

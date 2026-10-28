@@ -1,0 +1,122 @@
+# AI Quota のアーキテクチャ図
+# __MONO__ は単色ロゴの色。render.py がライト用 (000000) とダーク用 (ffffff) に置き換えて 2 枚描く
+# cdn.simpleicons.org はこの環境では 403 だったため、両テーマで読める Terrastruct のアイコンを使っている
+# 生成: python ~/.claude/skills/arch-diagram/versions/v1.1/scripts/render.py docs/architecture/architecture.d2
+direction: right
+
+vars: {
+  d2-config: {
+    layout-engine: elk
+    pad: 40
+  }
+}
+
+classes: {
+  svc: {
+    shape: rectangle
+    style: {
+      border-radius: 12
+      font-size: 15
+    }
+  }
+  ext: {
+    shape: image
+    width: 64
+    height: 64
+    label.near: outside-bottom-center
+  }
+  zone: {
+    style.border-radius: 16
+  }
+  saas: {
+    style: {
+      border-radius: 16
+      stroke-dash: 3
+    }
+  }
+}
+
+user: 利用者 {
+  class: ext
+  icon: https://icons.terrastruct.com/essentials%2F359-users.svg
+}
+
+pc: Windows {
+  class: zone
+  icon: https://icons.terrastruct.com/essentials%2F143-windows.svg
+
+  tray: "トレイ UI\nTauri v2" {
+    class: svc
+    icon: https://icons.terrastruct.com/essentials%2F006-window.svg
+  }
+
+  core: "quota-core\nプロバイダ取得" {
+    class: svc
+    icon: https://icons.terrastruct.com/tech%2F022-server.svg
+  }
+
+  cli: "quota\nCLI" {
+    class: svc
+    icon: https://icons.terrastruct.com/tech%2Fdesktop.svg
+  }
+
+  helper: "statusLine\nClaude Code 補助" {
+    class: svc
+    icon: https://icons.terrastruct.com/essentials%2F112-server.svg
+  }
+
+  history: "SQLite\n履歴キャッシュ" {
+    class: svc
+    icon: https://icons.terrastruct.com/essentials%2F117-database.svg
+  }
+
+  secrets: "資格情報\nCredential Manager" {
+    class: svc
+    icon: https://icons.terrastruct.com/essentials%2F216-key.svg
+  }
+
+  toast: "トースト\nWindows 通知" {
+    class: svc
+    icon: https://icons.terrastruct.com/essentials%2F108-megaphone.svg
+  }
+}
+
+logs: ローカルログ {
+  class: saas
+
+  sources: "~/.claude  ~/.codex\nopencode.db" {
+    class: ext
+    icon: https://icons.terrastruct.com/tech%2F069-hard-drive.svg
+  }
+}
+
+apis: 公式 API {
+  class: saas
+
+  vendors: "DeepSeek  xAI\nOpenAI  Anthropic" {
+    class: ext
+    icon: https://icons.terrastruct.com/tech%2Frouter.svg
+  }
+}
+
+actions: GitHub Actions {
+  class: zone
+  icon: https://icons.terrastruct.com/essentials%2F096-upload.svg
+
+  release: "Release\n.msi  NSIS  quota.exe" {
+    class: svc
+    icon: https://icons.terrastruct.com/essentials%2F096-upload.svg
+  }
+}
+
+user -> pc.tray: 開く
+pc.tray -> pc.core: 更新
+pc.cli -> pc.core: quota
+pc.helper -> logs.sources: キャッシュを書く
+logs.sources -> pc.core: ローカル読み取り
+pc.core -> apis.vendors: 残高と支出
+pc.core <-> pc.secrets: キー
+pc.core -> pc.history: スナップショット
+pc.core -> pc.tray: 表示
+pc.core -> pc.toast: しきい値 {style.stroke-dash: 4}
+actions.release -> user: インストーラ {style.stroke-dash: 4}

@@ -1,0 +1,27 @@
+[package]
+name = "quota-desktop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Tray app that shows AI usage quotas"
+
+[lib]
+name = "quota_desktop"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "ai-quota"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+chrono.workspace = true
+quota-core = { path = "../../../crates/quota-core" }
+serde.workspace = true
+serde_json.workspace = true
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-notification = "2"
+tokio.workspace = true
