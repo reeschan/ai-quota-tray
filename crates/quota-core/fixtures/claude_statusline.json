@@ -1,0 +1,8 @@
+{
+  "written_at": "WRITTEN_AT",
+  "model": "Claude Sonnet",
+  "rate_limits": {
+    "five_hour": { "used_percentage": 105, "resets_at": 1790000000 },
+    "seven_day": { "used_percentage": 34, "resets_at": 1790500000 }
+  }
+}

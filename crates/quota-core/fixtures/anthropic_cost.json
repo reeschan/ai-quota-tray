@@ -1,0 +1,14 @@
+{
+  "data": [
+    {
+      "starting_at": "2026-10-01T00:00:00Z",
+      "ending_at": "2026-10-02T00:00:00Z",
+      "results": [
+        { "currency": "USD", "amount": "1.25", "cost_type": "tokens" },
+        { "currency": "USD", "amount": "1.25", "cost_type": "tokens" }
+      ]
+    }
+  ],
+  "has_more": false,
+  "next_page": null
+}

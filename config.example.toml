@@ -1,0 +1,37 @@
+# Copy to %APPDATA%\ai-quota\config.toml (Linux: ~/.config/ai-quota/config.toml).
+# API keys do not belong here. Store them with `quota set-secret <name>`.
+
+[general]
+refresh_secs = 600
+notify_used_pct = 80.0
+# notify_balance_below = "5.00"
+notify_balance_currency = "USD"
+
+[providers.deepseek]
+enabled = true
+
+[providers.xai]
+enabled = true
+team_id = ""
+
+[providers.openai]
+enabled = true
+
+[providers.anthropic]
+enabled = true
+
+[providers.claude_code]
+enabled = true
+aggregate_tokens = true
+
+[providers.codex]
+enabled = true
+allow_unofficial_wham = false
+try_app_server = false
+
+[providers.opencode]
+enabled = true
+allow_unofficial_usage_api = false
+
+[providers.antigravity]
+enabled = false

@@ -1,0 +1,23 @@
+{
+  "data": [
+    {
+      "starting_at": "2026-10-01T00:00:00Z",
+      "ending_at": "2026-10-02T00:00:00Z",
+      "results": [
+        {
+          "uncached_input_tokens": 1500,
+          "cache_read_input_tokens": 200,
+          "output_tokens": 400,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 500,
+            "ephemeral_1h_input_tokens": 1000
+          }
+        },
+        {
+          "uncached_input_tokens": 500,
+          "output_tokens": 100
+        }
+      ]
+    }
+  ]
+}

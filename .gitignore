@@ -1,0 +1,8 @@
+/target
+**/target
+node_modules
+apps/desktop/dist
+agent-tools
+*.sqlite
+.DS_Store
+*.ai-quota.bak
