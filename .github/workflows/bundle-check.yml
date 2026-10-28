@@ -28,4 +28,4 @@ jobs:
         run: npm ci
       - name: Build MSI and NSIS bundles
         working-directory: apps/desktop
-        run: npm run tauri -- build -- --bundles msi,nsis
+        run: npm run tauri -- build --bundles msi,nsis
