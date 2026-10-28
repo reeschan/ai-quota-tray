@@ -328,10 +328,25 @@ fn safe_ident(name: &str) -> bool {
 fn sqlite_ro_uri(path: &Path) -> String {
     let absolute = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
     let text = absolute.to_string_lossy().replace('\\', "/");
-    if cfg!(windows) {
-        format!("file:///{text}?mode=ro")
+    sqlite_uri_from_canonical(&text, cfg!(windows))
+}
+
+/// Build a read-only SQLite URI. `canonicalize()` on Windows prefixes
+/// `\\?\` (or `\\?\UNC\`), which SQLite treats as part of the path and
+/// then fails to open the file.
+fn sqlite_uri_from_canonical(text: &str, windows: bool) -> String {
+    if !windows {
+        return format!("file:{text}?mode=ro");
+    }
+    let stripped = text
+        .strip_prefix("//?/UNC/")
+        .map(|unc| format!("//{unc}"))
+        .or_else(|| text.strip_prefix("//?/").map(str::to_string))
+        .unwrap_or_else(|| text.to_string());
+    if let Some(unc) = stripped.strip_prefix("//") {
+        format!("file://{unc}?mode=ro")
     } else {
-        format!("file:{text}?mode=ro")
+        format!("file:///{stripped}?mode=ro")
     }
 }
 
@@ -378,5 +393,27 @@ mod tests {
         let local = local_spend(std::slice::from_ref(&dir)).unwrap();
         assert_eq!(local.spend.unwrap().amount, "2.00");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn windows_uri_drops_the_extended_path_prefix() {
+        let uri = sqlite_uri_from_canonical(
+            "//?/C:/Users/runneradmin/AppData/Local/Temp/ai-quota-oc/opencode.db",
+            true,
+        );
+        assert_eq!(
+            uri,
+            "file:///C:/Users/runneradmin/AppData/Local/Temp/ai-quota-oc/opencode.db?mode=ro"
+        );
+        let unc = sqlite_uri_from_canonical("//?/UNC/server/share/opencode.db", true);
+        assert_eq!(unc, "file://server/share/opencode.db?mode=ro");
+        let plain = sqlite_uri_from_canonical("C:/Temp/opencode.db", true);
+        assert_eq!(plain, "file:///C:/Temp/opencode.db?mode=ro");
+    }
+
+    #[test]
+    fn posix_uri_stays_an_absolute_file_uri() {
+        let uri = sqlite_uri_from_canonical("/tmp/ai-quota-oc/opencode.db", false);
+        assert_eq!(uri, "file:/tmp/ai-quota-oc/opencode.db?mode=ro");
     }
 }
