@@ -1,0 +1,7 @@
+{
+  "model": { "id": "claude-sonnet", "display_name": "Sonnet" },
+  "rate_limits": {
+    "five_hour": { "used_percentage": 12.5, "resets_at": 1790000000 },
+    "seven_day": { "used_percentage": 40, "resets_at": 1790500000 }
+  }
+}
