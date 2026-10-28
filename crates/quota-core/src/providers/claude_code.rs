@@ -41,7 +41,11 @@ impl Provider for ClaudeCodeProvider {
             }
         };
         if self.aggregate_tokens {
-            match aggregate_project_tokens(&self.project_dirs) {
+            let dirs = self.project_dirs.clone();
+            let scanned = tokio::task::spawn_blocking(move || aggregate_project_tokens(&dirs))
+                .await
+                .unwrap_or_else(|err| Err(err.to_string()));
+            match scanned {
                 Ok(Some(note)) => snapshot.notes.push(note),
                 Ok(None) => {}
                 Err(err) => snapshot

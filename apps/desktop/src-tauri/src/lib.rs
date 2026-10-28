@@ -7,7 +7,7 @@ use quota_core::model::Snapshot;
 use quota_core::secrets::{is_allowed_secret, secret_label, SECRET_KEYS};
 use quota_core::statusline;
 use serde::Serialize;
-use state::{spawn_scheduler, Shared};
+use state::{notify_alerts, spawn_scheduler, Shared};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, State, WindowEvent};
@@ -30,8 +30,10 @@ fn snapshots(state: State<'_, AppState>) -> Result<Vec<Snapshot>, String> {
 }
 
 #[tauri::command]
-async fn refresh(state: State<'_, AppState>) -> Result<Vec<Snapshot>, String> {
-    state.shared.refresh_all().await
+async fn refresh(app: AppHandle, state: State<'_, AppState>) -> Result<Vec<Snapshot>, String> {
+    let (snapshots, alerts) = state.shared.refresh_all().await?;
+    notify_alerts(&app, &alerts);
+    Ok(snapshots)
 }
 
 #[tauri::command]
@@ -165,8 +167,10 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
                 let handle = app.clone();
                 tauri::async_runtime::spawn(async move {
                     if let Some(state) = handle.try_state::<AppState>() {
-                        let _ = state.shared.refresh_all().await;
-                        let _ = handle.emit("snapshots-updated", ());
+                        if let Ok((_snapshots, alerts)) = state.shared.refresh_all().await {
+                            notify_alerts(&handle, &alerts);
+                            let _ = handle.emit("snapshots-updated", ());
+                        }
                     }
                 });
             }

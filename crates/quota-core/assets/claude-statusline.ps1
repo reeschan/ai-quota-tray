@@ -1,6 +1,11 @@
 # Claude Code statusLine helper for Windows PowerShell.
 # Reads the JSON payload on stdin and writes rate-limit fields to
-# %APPDATA%\ai-quota\claude-statusline.json. It does not read credentials.
+# the cache path argument, or %APPDATA%\ai-quota\claude-statusline.json.
+# It does not read credentials.
+param(
+    [Parameter(Position = 0)]
+    [string]$CachePath
+)
 $ErrorActionPreference = "Stop"
 $raw = [Console]::In.ReadToEnd()
 if ([string]::IsNullOrWhiteSpace($raw)) { exit 0 }
@@ -45,7 +50,14 @@ if ($null -ne $payload.model) {
     elseif ($payload.model.id) { $model = [string]$payload.model.id }
 }
 
-$cacheDir = Join-Path $env:APPDATA "ai-quota"
+if ([string]::IsNullOrWhiteSpace($CachePath)) {
+    $cacheDir = Join-Path $env:APPDATA "ai-quota"
+    $dest = Join-Path $cacheDir "claude-statusline.json"
+} else {
+    $dest = $CachePath
+    $cacheDir = Split-Path -Parent $CachePath
+    if ([string]::IsNullOrWhiteSpace($cacheDir)) { $cacheDir = "." }
+}
 New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null
 $out = @{
     written_at = [DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")
@@ -53,7 +65,6 @@ $out = @{
     model = $model
 }
 $json = $out | ConvertTo-Json -Depth 6
-$dest = Join-Path $cacheDir "claude-statusline.json"
 $tmp = Join-Path $cacheDir "claude-statusline.json.tmp"
 [System.IO.File]::WriteAllText($tmp, $json)
 Move-Item -Force $tmp $dest

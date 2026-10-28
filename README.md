@@ -4,6 +4,13 @@ Windows のトレイに常駐し、使っている AI サービスの**残量・
 
 UI は日本語です。コードとコメントは英語です。
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/architecture/architecture-dark.svg">
+  <img src="docs/architecture/architecture-light.svg" alt="AI Quota のアーキテクチャ図。Windows のトレイ UI が quota-core を通して公式 API とローカルログを読み、資格情報と SQLite とトーストにつながる。">
+</picture>
+
+描き直し方は [docs/architecture/README.md](docs/architecture/README.md) です。状態遷移は [docs/state/README.md](docs/state/README.md) です。
+
 ## 何が動くか
 
 | プロバイダ | 状態 | ソース | 表示するもの |
@@ -44,7 +51,7 @@ UI は日本語です。コードとコメントは英語です。
 .\scripts\windows-build.ps1 -Bundle
 ```
 
-`-Bundle` なしでは `apps\desktop\src-tauri\target\release\ai-quota.exe` ができます。`-Bundle` では `apps\desktop\src-tauri\target\release\bundle` に `.msi` と NSIS の `.exe` インストーラができます。
+`-Bundle` なしではワークスペース直下の `target\release\ai-quota.exe` ができます。`-Bundle` では `target\release\bundle` に `.msi` と NSIS の `.exe` インストーラができます。
 
 リリースビルドは起動時にウィンドウを隠してトレイに入ります。トレイの左クリックかメニューの「開く」で表示します。閉じるボタンは終了ではなく隠すだけです。デバッグビルド（`cargo run -p quota-desktop`）は起動時にウィンドウを開きます。
 
@@ -60,7 +67,7 @@ npm run dev
 
 ## ダウンロード / インストール
 
-最新の Windows ビルドは GitHub Releases にあります。
+Windows ビルドは、リリースタグを push した後に GitHub Releases に公開されます。
 
 https://github.com/reeschan/ai-quota-tray/releases/latest
 

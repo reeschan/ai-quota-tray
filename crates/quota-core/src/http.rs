@@ -57,6 +57,7 @@ impl ReqwestHttp {
     pub fn new() -> Result<Self, HttpError> {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(20))
+            .redirect(reqwest::redirect::Policy::none())
             .user_agent(concat!("ai-quota/", env!("CARGO_PKG_VERSION")))
             .build()
             .map_err(|err| HttpError::Transport(err.to_string()))?;

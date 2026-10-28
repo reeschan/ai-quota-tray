@@ -24,6 +24,7 @@ pub fn crossing_alerts(
     latched: &BTreeSet<String>,
 ) -> (Vec<Alert>, BTreeSet<String>) {
     let mut next = BTreeSet::new();
+    let mut observed = BTreeSet::new();
     let mut alerts = Vec::new();
     if let Some(threshold) = used_pct_threshold {
         for window in &current.windows {
@@ -31,6 +32,7 @@ pub fn crossing_alerts(
                 continue;
             };
             let key = format!("{}|pct|{}", current.provider, window.label);
+            observed.insert(key.clone());
             if used >= threshold {
                 next.insert(key.clone());
                 if !latched.contains(&key) {
@@ -53,6 +55,7 @@ pub fn crossing_alerts(
                 parse_major_to_cents(&balance.amount),
             ) {
                 let key = format!("{}|balance", current.provider);
+                observed.insert(key.clone());
                 if amount < limit {
                     next.insert(key.clone());
                     if !latched.contains(&key) {
@@ -71,6 +74,22 @@ pub fn crossing_alerts(
                     }
                 }
             }
+        }
+    }
+    // A partial snapshot must not look like a recovery. Keep latches for
+    // enabled metrics that this snapshot did not report.
+    let pct_prefix = format!("{}|pct|", current.provider);
+    let balance_key = format!("{}|balance", current.provider);
+    for key in latched {
+        let enabled = if key.starts_with(&pct_prefix) {
+            used_pct_threshold.is_some()
+        } else if key == &balance_key {
+            balance_below.is_some()
+        } else {
+            false
+        };
+        if enabled && !observed.contains(key) {
+            next.insert(key.clone());
         }
     }
     (alerts, next)
@@ -112,6 +131,17 @@ mod tests {
         recovered.balance = Some(Money::from_cents(2_000, "USD"));
         let (_, cleared) = crossing_alerts(&recovered, Some(80.0), Some("5.00"), "USD", &latched);
         assert!(cleared.is_empty());
+    }
+
+    #[test]
+    fn omitted_percentage_keeps_the_existing_latch() {
+        let snapshot = snap();
+        let (_, latched) = crossing_alerts(&snapshot, Some(80.0), None, "USD", &BTreeSet::new());
+        let mut partial = snapshot.clone();
+        partial.windows[0].used_pct = None;
+        let (alerts, next) = crossing_alerts(&partial, Some(80.0), None, "USD", &latched);
+        assert!(alerts.is_empty());
+        assert!(next.contains("deepseek|pct|5時間"));
     }
 
     #[test]

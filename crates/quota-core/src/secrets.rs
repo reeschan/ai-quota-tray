@@ -136,3 +136,32 @@ pub fn read_secret(
         ))),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn separate_entries_read_the_same_credential() {
+        let service = format!("ai-quota-test-{}", std::process::id());
+        let user = "round-trip";
+        let writer = match keyring::Entry::new(&service, user) {
+            Ok(entry) => entry,
+            Err(err) => {
+                eprintln!("keyring entry unavailable, skipping round trip: {err}");
+                return;
+            }
+        };
+        if let Err(err) = writer.set_password("stored-once") {
+            match err {
+                keyring::Error::PlatformFailure(_) | keyring::Error::NoStorageAccess(_) => {
+                    eprintln!("platform credential store unavailable, skipping round trip: {err}");
+                    return;
+                }
+                other => panic!("set_password failed: {other}"),
+            }
+        }
+        let reader = keyring::Entry::new(&service, user).expect("second entry");
+        let value = reader.get_password().expect("read back");
+        assert_eq!(value, "stored-once");
+        let _ = writer.delete_credential();
+    }
+}

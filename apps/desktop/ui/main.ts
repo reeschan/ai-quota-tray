@@ -565,7 +565,7 @@ if (inTauri) {
   void listen("snapshots-updated", () => {
     void invoke<Snapshot[]>("snapshots").then((next) => {
       snapshots = next;
-      render();
+      if (tab === "usage") render();
     });
   });
 }

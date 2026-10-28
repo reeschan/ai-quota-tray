@@ -173,6 +173,15 @@ impl Default for GeneralConfig {
 }
 
 impl Config {
+    pub fn validate(&self) -> Result<(), String> {
+        if let Some(amount) = &self.general.notify_balance_below {
+            crate::money::parse_major_to_cents(amount.trim()).map_err(|err| {
+                format!("general.notify_balance_below が不正です（{amount}）: {err}")
+            })?;
+        }
+        Ok(())
+    }
+
     pub fn normalize(&mut self) {
         if self.general.refresh_secs == 0 {
             self.general.refresh_secs = default_refresh_secs();
@@ -191,11 +200,7 @@ impl Config {
             self.general.notify_balance_currency = default_currency();
         }
         if let Some(amount) = self.general.notify_balance_below.clone() {
-            if crate::money::parse_major_to_cents(amount.trim()).is_err() {
-                self.general.notify_balance_below = None;
-            } else {
-                self.general.notify_balance_below = Some(amount.trim().to_string());
-            }
+            self.general.notify_balance_below = Some(amount.trim().to_string());
         }
         self.providers.xai.team_id = self.providers.xai.team_id.trim().to_string();
     }
@@ -223,6 +228,7 @@ impl Config {
             return Ok(Self::default());
         }
         let mut config: Self = toml::from_str(&text).map_err(|err| err.to_string())?;
+        config.validate()?;
         config.normalize();
         Ok(config)
     }
@@ -234,6 +240,7 @@ impl Config {
     }
 
     pub fn save(&self, path: &Path) -> Result<(), String> {
+        self.validate()?;
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).map_err(|err| err.to_string())?;
         }
@@ -277,10 +284,19 @@ mod tests {
         let mut config = Config::default();
         config.general.refresh_secs = 10;
         config.general.notify_used_pct = Some(0.0);
-        config.general.notify_balance_below = Some("nope".into());
+        config.general.notify_balance_below = Some(" 5.00 ".into());
         config.normalize();
         assert_eq!(config.general.refresh_secs, 60);
         assert!(config.general.notify_used_pct.is_none());
-        assert!(config.general.notify_balance_below.is_none());
+        assert_eq!(config.general.notify_balance_below.as_deref(), Some("5.00"));
+    }
+
+    #[test]
+    fn rejects_an_unparsable_balance_threshold() {
+        let mut config = Config::default();
+        config.general.notify_balance_below = Some("nope".into());
+        let error = config.validate().unwrap_err();
+        assert!(error.contains("notify_balance_below"));
+        assert_eq!(config.general.notify_balance_below.as_deref(), Some("nope"));
     }
 }

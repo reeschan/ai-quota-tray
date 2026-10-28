@@ -33,7 +33,10 @@ impl Provider for AnthropicProvider {
         let Some(api_key) = self.api_key.as_deref() else {
             return Err(ProviderError::MissingSecret("anthropic_admin_key"));
         };
-        let starting = (Utc::now() - Duration::days(30)).to_rfc3339();
+        // `+00:00` would be decoded as a space in the query string.
+        let starting = (Utc::now() - Duration::days(30))
+            .format("%Y-%m-%dT%H:%M:%SZ")
+            .to_string();
         let cost_url = format!(
             "https://api.anthropic.com/v1/organizations/cost_report?starting_at={starting}&bucket_width=1d&limit=31"
         );
@@ -68,7 +71,8 @@ pub fn parse_anthropic_cost(body: &str) -> Result<Snapshot, ProviderError> {
     let buckets = value.get("data").and_then(Value::as_array).ok_or_else(|| {
         ProviderError::Unavailable("cost_report の data がありません。支出 0 とは扱いません".into())
     })?;
-    let mut cents = 0i64;
+    // cost_report `amount` is a decimal string in the lowest currency unit (cents).
+    let mut centi_cents = 0i64;
     let mut rows = 0i64;
     let mut currency = "USD".to_string();
     for bucket in buckets {
@@ -79,7 +83,7 @@ pub fn parse_anthropic_cost(body: &str) -> Result<Snapshot, ProviderError> {
             let Some(amount) = result.get("amount").and_then(Value::as_str) else {
                 continue;
             };
-            cents = cents
+            centi_cents = centi_cents
                 .checked_add(parse_major_to_cents(amount).map_err(ProviderError::Unavailable)?)
                 .ok_or_else(|| ProviderError::Unavailable("支出合計が範囲外です".into()))?;
             if let Some(code) = result.get("currency").and_then(Value::as_str) {
@@ -100,7 +104,7 @@ pub fn parse_anthropic_cost(body: &str) -> Result<Snapshot, ProviderError> {
             .notes
             .push("この期間のコスト行はありません。0 円としては表示しません".into());
     } else {
-        snapshot.spend = Some(Money::from_cents(cents, &currency));
+        snapshot.spend = Some(Money::from_cents(centi_cents / 100, &currency));
     }
     Ok(snapshot)
 }
@@ -172,7 +176,7 @@ mod tests {
             .push(usage_note(include_str!("../../fixtures/anthropic_usage.json")).unwrap());
         assert!(snapshot.balance.is_none());
         assert!(snapshot.windows.is_empty());
-        assert_eq!(snapshot.spend.unwrap().amount, "2.50");
+        assert_eq!(snapshot.spend.unwrap().amount, "0.02");
         let note = snapshot
             .notes
             .iter()

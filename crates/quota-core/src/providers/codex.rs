@@ -366,14 +366,14 @@ pub fn read_tail(path: &Path, max_bytes: u64) -> std::io::Result<String> {
     let len = file.metadata()?.len();
     let start = len.saturating_sub(max_bytes);
     file.seek(SeekFrom::Start(start))?;
-    let mut text = String::new();
-    file.read_to_string(&mut text)?;
+    let mut bytes = Vec::new();
+    file.read_to_end(&mut bytes)?;
     if start > 0 {
-        if let Some(index) = text.find('\n') {
-            text.drain(..=index);
+        if let Some(index) = bytes.iter().position(|byte| *byte == b'\n') {
+            bytes.drain(..=index);
         }
     }
-    Ok(text)
+    Ok(String::from_utf8_lossy(&bytes).into_owned())
 }
 
 fn mtime(path: &Path) -> SystemTime {

@@ -59,15 +59,18 @@ impl Shared {
         Ok(visible)
     }
 
-    pub async fn refresh_all(&self) -> Result<Vec<Snapshot>, String> {
+    pub async fn refresh_all(
+        &self,
+    ) -> Result<(Vec<Snapshot>, Vec<quota_core::alerts::Alert>), String> {
         let config = self.config.read().map_err(|err| err.to_string())?.clone();
         let paths = self.paths.read().map_err(|err| err.to_string())?.clone();
         let snapshots =
             fetch_enabled(&config, &paths, self.http.clone(), self.secrets.clone()).await;
+        let mut alerts = Vec::new();
         for snapshot in &snapshots {
-            self.record(snapshot.clone(), &config);
+            alerts.extend(self.record(snapshot.clone(), &config));
         }
-        self.view()
+        Ok((self.view()?, alerts))
     }
 
     pub fn record(&self, snapshot: Snapshot, config: &Config) -> Vec<quota_core::alerts::Alert> {
@@ -120,6 +123,7 @@ impl Shared {
     }
 
     pub fn save_config(&self, mut config: Config) -> Result<Config, String> {
+        config.validate()?;
         config.normalize();
         config.save(&self.config_path)?;
         let paths = ResolvedPaths::from_config(&config);
@@ -129,10 +133,21 @@ impl Shared {
     }
 }
 
+pub fn notify_alerts(app: &AppHandle, alerts: &[quota_core::alerts::Alert]) {
+    for alert in alerts {
+        let _ = app
+            .notification()
+            .builder()
+            .title("AI使用量")
+            .body(&alert.message)
+            .show();
+    }
+}
+
 pub fn spawn_scheduler(app: AppHandle, shared: Arc<Shared>) {
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
     if let Ok(paths) = shared.paths.read() {
-        let _ = spawn_watcher(watch_directories(&paths), tx);
+        let _ = spawn_watcher(watch_directories(&paths), paths.clone(), tx);
     }
     tauri::async_runtime::spawn(async move {
         let mut states: HashMap<String, LoopState> = HashMap::new();
@@ -210,14 +225,7 @@ pub fn spawn_scheduler(app: AppHandle, shared: Arc<Shared>) {
                 changed = true;
             }
             if changed {
-                for alert in alerts {
-                    let _ = app
-                        .notification()
-                        .builder()
-                        .title("AI使用量")
-                        .body(alert.message)
-                        .show();
-                }
+                notify_alerts(&app, &alerts);
                 let _ = app.emit("snapshots-updated", ());
             }
         }

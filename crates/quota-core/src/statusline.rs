@@ -31,7 +31,7 @@ pub fn install(paths: &ResolvedPaths) -> Result<String, String> {
         fs::set_permissions(&sh, fs::Permissions::from_mode(0o755))
             .map_err(|err| err.to_string())?;
     }
-    let command = statusline_command(claude_home);
+    let command = statusline_command(claude_home, &paths.claude_cache);
     let settings_path = &paths.claude_settings;
     let original = if settings_path.exists() {
         fs::read_to_string(settings_path).map_err(|err| err.to_string())?
@@ -63,16 +63,21 @@ pub fn install(paths: &ResolvedPaths) -> Result<String, String> {
     }
 }
 
-pub fn statusline_command(claude_home: &Path) -> String {
+pub fn statusline_command(claude_home: &Path, claude_cache: &Path) -> String {
     if cfg!(windows) {
         let script = claude_home.join("ai-quota-statusline.ps1");
         format!(
-            "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"{}\"",
-            script.display()
+            "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"{}\" \"{}\"",
+            script.display(),
+            claude_cache.display()
         )
     } else {
         let script = claude_home.join("ai-quota-statusline.sh");
-        format!("bash \"{}\"", script.display())
+        format!(
+            "bash \"{}\" \"{}\"",
+            script.display(),
+            claude_cache.display()
+        )
     }
 }
 

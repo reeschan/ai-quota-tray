@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Claude Code statusLine helper. Reads the JSON payload on stdin and writes
-# rate-limit fields to the ai-quota cache. It does not read credentials.
+# rate-limit fields to the cache path in $1, or the default ai-quota cache.
+# It does not read credentials.
+cache_arg="${1:-}"
 exec python3 -c '
 import json, os, sys
 from datetime import datetime, timezone
@@ -19,13 +21,19 @@ rate = payload.get("rate_limits") if isinstance(payload, dict) else None
 if not isinstance(rate, dict):
     rate = {}
 
-appdata = os.environ.get("APPDATA")
-if appdata:
-    cache_dir = Path(appdata) / "ai-quota"
+arg = sys.argv[1] if len(sys.argv) > 1 else ""
+if arg:
+    path = Path(arg)
+    path.parent.mkdir(parents=True, exist_ok=True)
 else:
-    config_home = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
-    cache_dir = Path(config_home) / "ai-quota"
-cache_dir.mkdir(parents=True, exist_ok=True)
+    appdata = os.environ.get("APPDATA")
+    if appdata:
+        cache_dir = Path(appdata) / "ai-quota"
+    else:
+        config_home = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
+        cache_dir = Path(config_home) / "ai-quota"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    path = cache_dir / "claude-statusline.json"
 
 model = None
 model_node = payload.get("model") if isinstance(payload, dict) else None
@@ -37,8 +45,7 @@ out = {
     "rate_limits": rate,
     "model": model,
 }
-path = cache_dir / "claude-statusline.json"
-tmp = cache_dir / "claude-statusline.json.tmp"
+tmp = path.with_name(path.name + ".tmp")
 tmp.write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
 tmp.replace(path)
 
@@ -64,4 +71,4 @@ elif model:
     print(model)
 else:
     print("quota: waiting")
-'
+' "$cache_arg"
